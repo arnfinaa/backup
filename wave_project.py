@@ -7,8 +7,9 @@ for initial conditions
 and homogenous von Neuman boundary conditions (du/dn=0) vy finite differences.
 """
 from numpy import *
-from matplotlib.pyplot import *
+import matplotlib.pyplot as plt
 import time 
+
 
 def solver(I, V, f, q, b, Lx, Ly, Nx, Ny, dt, T, user_action=None, 
 		   version='scalar'):
@@ -19,13 +20,13 @@ def solver(I, V, f, q, b, Lx, Ly, Nx, Ny, dt, T, user_action=None,
 	y  = linspace(0, Ly, Ny+1)		
 	xv = x[:,newaxis]			# for vector operations
 	yv = y[newaxis,:]
-  	dx = x[1] - x[0]			
+	dx = x[1] - x[0]			
 	dy = y[1] - y[0]
 	
 	Nt = int(round(T/float(dt)))	#time discretization	
 	t  = linspace(0, Nt*dt, Nt+1)	
 	
-	b = float(b);       A = 1/(1+b/2*dt)	# help variables 
+	b = float(b);     	A = 1/(1+b/2*dt)	# help variables 
 	Cx2 = (dt/dx)**2;   Cy2 = (dt/dy)**2			
 
 	u   = zeros((Nx+1, Ny+1))	# solution arrays
@@ -41,26 +42,24 @@ def solver(I, V, f, q, b, Lx, Ly, Nx, Ny, dt, T, user_action=None,
 			for j in Iy:
 				u_1[i,j] = I(x[i], y[j])
 	else:
-		u_1[:,:] = I(xv,yv)
+		u_1[:,:] = I(xv,yv)	
 		V_a = V(xv, yv)	#Evalute at startup for vectorized version
 		q_a = q(xv, yv)
 		#These will be used for the incrementation step.
-		q_a_px = 0.5*(concatenate((q_a[1:,:],q_a[-2,:][None,:]),axis=0) - q_a) 
-		q_a_mx = 0.5*(q_a - concatenate((q_a[1,:][None,:],q_a[:-1,:]),axis=0))
-		q_a_py = 0.5*(concatenate((q_a[:,1:],q_a[:,-2][:,None]),axis=1) - q_a)
-		q_a_my = 0.5*(q_a - concatenate((q_a[:,1][:,None],q_a[:,:-1]),axis=1))		
-
+		q_a_px = 0.5*(concatenate((q_a[1:,:],q_a[-2,:][None,:]),axis=0) + q_a) 
+		q_a_mx = 0.5*(q_a + concatenate((q_a[1,:][None,:],q_a[:-1,:]),axis=0))
+		q_a_py = 0.5*(concatenate((q_a[:,1:],q_a[:,-2][:,None]),axis=1) + q_a)
+		q_a_my = 0.5*(q_a + concatenate((q_a[:,1][:,None],q_a[:,:-1]),axis=1))		
 	if user_action is not None:
 		user_action(u_1, x, xv, y, yv, t, 0) 
 
 	for n in It[0:-1]:
 		if version == 'scalar':			
-			u = advance_scalar(u, u_1, u_2, V, f, q, b, x, y, t, Cx2, Cy2, A, 
-							   dt, n)
+			u = advance_scalar(u, u_1, u_2, V, f, q, b, x, y, t, Cx2, Cy2, A, dt, n)
 		else:
 			f_a=f(xv, yv, t[n])
-			u = advance_vector(u, u_1, u_2, V_a, f_a, q_a_px, q_a_mx, q_a_py, 
-							   q_a_my, b, x, y, t, Cx2, Cy2, A, dt, n) 		
+			u = advance_vector(u, u_1, u_2, V_a, f_a, q_a_px, q_a_mx, q_a_py, q_a_my, 
+							   b, x, y, t, Cx2, Cy2, A, dt, n) 		
 		u_2, u_1, u = u_1, u, u_2
 		
 		if user_action is not None:
@@ -91,13 +90,13 @@ def advance_scalar(u, u_1, u_2, V, f, q, b, x, y, t, Cx2, Cy2, A, dt, n):
 			if j==Iy[-1]:
 				jp1 = jm1			
 			#incrementation scheme
-			u_xx = Cx2*(0.5*(q(x[ip1],y[j])+q(x[i],y[j]))*(u_1[ip1,j]-u_1[i,j])\
-				   - 0.5*(q(x[i],y[j])+q(x[im1],y[j]))*(u_1[i,j]-u_1[im1,j])) 
-			u_yy = Cy2*(0.5*(q(x[i],y[jp1])+q(x[i],y[j]))*(u_1[i,jp1]-u_1[i,j])\
-				   - 0.5*(q(x[i],y[j])+q(x[i],y[jm1]))*(u_1[i,j]-u_1[i,jm1]))
+			u_xx = Cx2*(0.5*(q(x[ip1],y[j])+q(x[i],y[j]))*(u_1[ip1,j]-u_1[i,j]) \
+				     - 0.5*(q(x[i],y[j])+q(x[im1],y[j]))*(u_1[i,j]-u_1[im1,j])) 
+			u_yy = Cy2*(0.5*(q(x[i],y[jp1])+q(x[i],y[j]))*(u_1[i,jp1]-u_1[i,j]) \
+				     - 0.5*(q(x[i],y[j])+q(x[i],y[jm1]))*(u_1[i,j]-u_1[i,jm1]))
  			
-			u[i,j] = B*(2*u_1[i,j]-(1-b*dt/2)*(D1*u_2[i,j]-D2*V(x[i],y[j]))\
-					 + u_xx+u_yy+f(x[i],y[j],t[n])*dt**2)
+			u[i,j] = B*(2*u_1[i,j] - (1-b*dt/2)*(D1*u_2[i,j]-D2*V(x[i],y[j])) \
+					     + u_xx + u_yy + f(x[i],y[j],t[n])*dt**2)
 	return u
 	
 def advance_vector(u, u_1, u_2, V_a, f_a, q_a_px, q_a_mx, q_a_py, q_a_my, b, x, 
@@ -124,11 +123,11 @@ def advance_vector(u, u_1, u_2, V_a, f_a, q_a_px, q_a_mx, q_a_py, q_a_my, b, x,
 import nose.tools as nt
 
 def test_constant_solution():
-	u_exact = lambda x,y,t : zeros((size(x),size(y),size(t))) + 2
+	u_exact = lambda x,y,t : zeros((size(x),size(y))) + 2
 	I = lambda x,y: zeros((size(x),size(y))) + 2
 	V = lambda x,y: zeros((size(x),size(y)))
 	q = lambda x,y: 3 + x + y 
-	f = lambda x,y,t: zeros((size(x),size(y),size(t)))
+	f = lambda x,y,t: zeros((size(x),size(y)))
 	
 	b  = 2	
 	Lx = 4
@@ -148,4 +147,75 @@ def test_constant_solution():
 
 	solver(I,V,f,q,b,Lx,Ly,Nx,Ny,dt,T,user_action=assert_no_error,
 		   version='vector')
+
+
+from mpl_toolkits.mplot3d.axes3d import Axes3D
+import glob, os
+def test_1D_plug_wave(): 
+        plt.ion()
+	def plot_u_vector(u, x, xv, y, yv, t, n):
+		fig = plt.figure()
+		ax = fig.add_subplot(1,1,1,projection='3d')
+		p = ax.plot_surface(xv,yv,u,rstride=1,cstride=1,cmap=plt.cm.coolwarm)
+		plt.title('u(x,y)') 
+		plt.xlabel('x')
+		plt.ylabel('y')
+		plt.savefig('frame_vector_%04d.png' % n)
+		plt.close("all")
+
+	def plot_u_scalar(u, x, xv, y, yv, t, n):	
+		fig = plt.figure()
+		ax = fig.add_subplot(1,1,1,projection='3d')
+		x,y=meshgrid(x,y)
+		p = ax.plot_surface(xv,yv,u,rstride=1,cstride=1,cmap=plt.cm.coolwarm)
+		plt.title('u(x,y)') 
+		plt.xlabel('x')
+		plt.ylabel('y')
+		plt.savefig('frame_scalar_%04d.png' % n)
+		plt.close("all")
+
+	
+	#for 'vector' version
+	def Iv_x(x,y):	
+		Iv_x=zeros((size(x),size(y)))
+		Iv_x[6:-6,:]+=1.0
+		return Iv_x
+	def Iv_y(x,y):	
+		Iv_y=zeros((size(x),size(y)))
+		Iv_y[:,7:-7]+=1.0
+		return Iv_y
+	#for 'scalar' version
+	def Is_x(x,y):
+		return 1 if 5<x<8 else 0 
+	def Is_y(x,y):
+		return 1 if 6<y<9 else 0 
+	V = lambda x,y: zeros((size(x),size(y)))
+	q = lambda x,y: zeros((size(x),size(y)))+1.0 
+	f = lambda x,y,t: zeros((size(x),size(y)))
+
+	#q*dt/dx=1 og q*dt/dx=1
+	b  = 0.0	
+	Lx = 13.0
+	Ly = 15.0
+	Nx = 13.0
+	Ny = 15.0
+	dt = 1.0
+	T  = 12.0
+
+	plt.close("all")
+	for filename in glob.glob('frame_*.png'):
+			os.remove(filename)
+
+#	solver(Iv_x,V,f,q,b,Lx,Ly,Nx,Ny,dt,T,user_action=plot_u_vector,
+#	       version='vector')
+
+	solver(Iv_y,V,f,q,b,Lx,Ly,Nx,Ny,dt,T,user_action=plot_u_vector,
+	       version='vector')
+
+#	solver(Is_x,V,f,q,b,Lx,Ly,Nx,Ny,dt,T,user_action=plot_u_scalar,
+#	       version='scalar')
+
+	solver(Is_y,V,f,q,b,Lx,Ly,Nx,Ny,dt,T,user_action=plot_u_scalar,
+	       version='scalar')
+
 
